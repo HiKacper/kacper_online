@@ -298,6 +298,24 @@
     if (reduce) {
       v.removeAttribute('autoplay');
       v.pause();
+      return;
+    }
+    // Some mobile browsers only honor "muted" as a JS property, not the
+    // HTML attribute, and won't reliably start a declarative autoplay
+    // video without an explicit play() call. Belt and suspenders:
+    v.muted = true;
+    var playAttempt = v.play();
+    if (playAttempt && typeof playAttempt.catch === 'function') {
+      playAttempt.catch(function () {
+        // Autoplay was blocked. Retry once the video has enough data,
+        // and once more on the visitor's first tap anywhere on the page
+        // (most mobile browsers allow programmatic play() after any
+        // user gesture, even one that didn't touch the video itself).
+        var retry = function () { v.play().catch(function () {}); };
+        v.addEventListener('canplay', retry, { once: true });
+        document.addEventListener('touchstart', retry, { once: true, passive: true });
+        document.addEventListener('click', retry, { once: true });
+      });
     }
   })();
 </script>
